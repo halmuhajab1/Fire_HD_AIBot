@@ -1,0 +1,6 @@
+Flask>=2.3.2
+azure-eventgrid==4.11.0
+azure-communication-callautomation==1.1.0
+azure-communication-email
+word2number-1.1
+

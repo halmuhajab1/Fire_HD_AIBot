@@ -1,1 +1,1 @@
-# Fire_HD_AIBot
+Please read all documentation before moving forward. 
