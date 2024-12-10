@@ -743,6 +743,7 @@ def callback_events_handler():
                 if event.data['operationContext'] == "confirm_new_phone_number":
                     if label_detected == CONFIRM_CHOICE_LABEL:
                         current_ticket.phone_number = new_phone_number
+                        app.logger.info("Current ticket new phone number: " + current_ticket.phone_number)
                         if current_employee.email_address != "":
                             text_to_play = "Okay. I also have your email address on file from the directory. Is this " \
                                            "still the best email to reach you at?"
@@ -907,7 +908,6 @@ def callback_events_handler():
                 if event.data['operationContext'] == "capture_issue":
                     issue_description = text
                     current_ticket.issue_description = issue_description
-                    send_email(current_ticket)
                     text_to_play = "I understand. Sorry to hear that your dealing with that today. Ive logged this " \
                                    "issue successfully." \
                                    " Someone should be reaching out to you shortly, " \
@@ -920,6 +920,7 @@ def callback_events_handler():
                         target_participant=target_participant,
                         choices=get_additional_request_choices(),
                         context="confirm_additional_request")
+                    send_email(current_ticket)
 
             elif event.data['recognitionType'] == "dtmf":
                 tones = event.data['dtmfResult']['tones']
@@ -984,7 +985,7 @@ def callback_events_handler():
                         call_connection_client=call_connection_client,
                         text_to_play=text_to_play,
                         target_participant=target_participant,
-                        choices=get_confirm_choices(), context="confirm_phone_number")
+                        choices=get_confirm_choices(), context="confirm_new_phone_number")
 
             # FALL THROUGH
             else:
@@ -993,8 +994,8 @@ def callback_events_handler():
         elif event.type == "Microsoft.Communication.RecognizeFailed":
             retry_object.counter += 1
             if retry_object.counter > 2:
-                handle_play(call_connection_client, "I apoligze. It looks like we are having an issue understanding "
-                                                    "eachother. Let me connect you to a live agent. Goodbye for "
+                handle_play(call_connection_client, "I apologize. It looks like we are having an issue understanding "
+                                                    "each other. Let me connect you to a live agent. Goodbye for "
                                                     "now!", "retry_count_reached")
 
             failedContext = event.data['operationContext']
