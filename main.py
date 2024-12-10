@@ -334,7 +334,7 @@ def get_media_recognize_choice_options(call_connection_client: CallConnectionCli
         target_participant=target_participant,
         choices=choices,
         play_prompt=play_source,
-        interrupt_prompt=True,
+        interrupt_prompt=False,
         initial_silence_timeout=30,
         end_silence_timeout=2,
         operation_context=context
@@ -455,8 +455,8 @@ def set_target_number(new_num: str):
     Args:
         new_num (str): A new phone number to target for the call.
     """
-    global CALLER_PHONE_NUMBER
-    CALLER_PHONE_NUMBER = new_num
+    global TARGET_PHONE_NUMBER
+    TARGET_PHONE_NUMBER = new_num
 
 
 def send_email(ticket=None):
@@ -509,12 +509,12 @@ def send_email(ticket=None):
 def outbound_call_handler():
     """Handle outbound call initiation.
 
-    Creates a call to the CALLER_PHONE_NUMBER and sets up callbacks for further interaction.
+    Creates a call to the TARGET_PHONE_NUMBER and sets up callbacks for further interaction.
 
     Returns:
         A Flask redirect response to the root endpoint.
     """
-    target_participant = PhoneNumberIdentifier(CALLER_PHONE_NUMBER)
+    target_participant = PhoneNumberIdentifier(TARGET_PHONE_NUMBER)
     source_caller = PhoneNumberIdentifier(ACS_PHONE_NUMBER)
     call_connection_properties = call_automation_client.create_call(
         target_participant,
@@ -584,7 +584,7 @@ def callback_events_handler():
         call_connection_id = event.data['callConnectionId']
         app.logger.info("%s event received for call connection id: %s", event.type, call_connection_id)
         call_connection_client = call_automation_client.get_call_connection(call_connection_id)
-        target_participant = PhoneNumberIdentifier(CALLER_PHONE_NUMBER)
+        target_participant = PhoneNumberIdentifier(TARGET_PHONE_NUMBER)
         if event.type == "Microsoft.Communication.CallConnected":
             reset_ticket()
             app.logger.info("Starting recognize")
@@ -927,7 +927,7 @@ def callback_events_handler():
                                 event.data.get('operationContext'))
                 num_string = ""
 
-                if len(tones) != 6:
+                if event.data['operationContext'] == "provide_eid" and len(tones) != 6:
                     text_to_play = "Employee ID numbers should have 6 digits. Let's try again. " \
                                    "Can you please say or enter your employee ID number? "
                     get_media_recognize_speech_or_dtmf_input(
@@ -956,14 +956,6 @@ def callback_events_handler():
                     id_no_periods = id_raw.replace(".", "")
                     final_id_num = "e" + id_no_periods
                     temp_employee = get_employee_by_id(final_id_num)
-
-                    text_to_play = "I couldn't find an employee under that I.D. number. Let's try one more time. " \
-                                   "Can you please say your employee ID number? "
-                    get_media_recognize_speech_or_dtmf_input(
-                        call_connection_client=call_connection_client,
-                        text_to_play=text_to_play,
-                        target_participant=target_participant,
-                        context="provide_eid")
 
                     if isinstance(temp_employee, Employee):
                         modify_current_employee(temp_employee)
@@ -1066,3 +1058,4 @@ def index_handler():
 if __name__ == '__main__':
     app.logger.setLevel(INFO)
     app.run(port=8080)
+
