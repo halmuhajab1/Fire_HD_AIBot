@@ -142,7 +142,7 @@ class RetryObject:
         counter (int): How many retries have been attempted.
     """
 
-    def __int__(self, context="", choices=[], mode="", counter=0):
+    def __init__(self, context="", choices=[], mode="", counter=0):
         """Initialize a RetryObject instance.
 
         Args:
