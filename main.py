@@ -848,6 +848,9 @@ def callback_events_handler():
                     text = text.lower()
                     no_spaces_text = text.replace(" ", "")
                     final_id_num = no_spaces_text.replace(".", "")
+                    if "c" not in final_id_num and "e" not in final_id_num:
+                        final_id_num = "e" + final_id_num
+                    
                     temp_employee = get_employee_by_id(final_id_num)
 
                     if isinstance(temp_employee, Employee):
