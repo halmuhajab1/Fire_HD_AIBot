@@ -1,5 +1,4 @@
 """Los Angeles Fire Department Help Desk Phone Line Chatbot
-AUTHOR: Alex Marrero, University of Southern California, Fall 2024
 
 This application uses Azure Communication Services, Azure Event Grid, and
 Flask to handle incoming and outgoing calls, log tickets, and provide an IVR-like
@@ -142,7 +141,7 @@ class RetryObject:
         counter (int): How many retries have been attempted.
     """
 
-    def __init__(self, context="", choices=[], mode="", counter=0):
+    def __init__(self, context="", choices=[], mode="", counter=0, prompt=""):
         """Initialize a RetryObject instance.
 
         Args:
@@ -155,6 +154,7 @@ class RetryObject:
         self.choices = choices
         self.mode = mode
         self.counter = counter
+        self.prompt = prompt
 
     def __repr__(self):
         """Return a string representation of the RetryObject."""
@@ -167,6 +167,7 @@ class RetryObject:
         self.mode = ""
         self.context = ""
         self.choices = []
+        self.prompt = ""
 
 
 # Employee data loading
@@ -191,7 +192,32 @@ new_phone_number = None
 current_ticket = Ticket()
 retry_object = RetryObject()
 
-# PATH FOR FRONT-END PAGE
+
+def increment_ro_counter():
+    global retry_object
+    retry_object.counter = retry_object.counter + 1
+
+
+def set_ro_prompt(prompt):
+    global retry_object
+    retry_object.prompt = prompt
+
+
+def set_ro_context(context):
+    global retry_object
+    retry_object.context = context
+
+
+def set_ro_mode(mode):
+    global retry_object
+    retry_object.mode = mode
+
+
+def set_ro_choices_(choices):
+    global retry_object
+    retry_object.choices = choices
+
+
 TEMPLATE_FILES_PATH = "template"
 
 ACS_CONNECTION_STRING = "ENTER ACS CONNECTION STRING HERE"
@@ -205,12 +231,14 @@ RECIPIENT_ADDRESS = "www.tech.footprints@fire.lacounty.gov"
 
 # Prompts and constants
 SPEECH_TO_TEXT_VOICE = "en-US-AvaMultilingualNeural"
-MAIN_MENU = "Hello! Welcome to the Los Angeles Fire Department Help Desk Phone Line. ..."
+MAIN_MENU = "Hello! Welcome to the Los Angeles Fire Department Help Desk Phone Line. How can I help you? Say 'ticket' " \
+            "if you would like to file a ticket, or press one. Say 'radio' if you would like to be connected to a " \
+            "radio controlled unit, or press zero "
 CUSTOMER_QUERY_TIMEOUT = "I’m sorry I didn’t receive a response, please try again."
-NO_RESPONSE = "I didn't receive an input ..."
+NO_RESPONSE = "I didn't receive an input. Please try again"
 INVALID_AUDIO = "I’m sorry, I didn’t understand your response, please try again."
 CONFIRM_CHOICE_LABEL = "Confirm"
-CANCEL_CHOICE_LABEL = "No"
+CANCEL_CHOICE_LABEL = "Cancel"
 TICKET_CHOICE_LABEL = "Ticket"
 MCU_CHOICE_LABEL = "MCU"
 RETRY_CONTEXT = "retry"
@@ -229,7 +257,7 @@ def get_menu_choices():
         list: A list of RecognitionChoice objects for the main menu.
     """
     choices = [
-        RecognitionChoice(label=TICKET_CHOICE_LABEL, phrases=["File ticket"], tone=DtmfTone.ONE),
+        RecognitionChoice(label=TICKET_CHOICE_LABEL, phrases=["File ticket", "ticket"], tone=DtmfTone.ONE),
         RecognitionChoice(label=MCU_CHOICE_LABEL,
                           phrases=["Speak to radio", "Speak to a person", "Speak to radio controlled unit",
                                    "Transfer to person"], tone=DtmfTone.ZERO),
@@ -324,9 +352,10 @@ def get_media_recognize_choice_options(call_connection_client: CallConnectionCli
         choices (list): A list of RecognitionChoice options.
         context (str): The operation context for this recognition attempt.
     """
-    retry_object.context = context
-    retry_object.mode = "choices"
-    retry_object.choices = choices
+    set_ro_context(context)
+    set_ro_mode("choices")
+    set_ro_choices_(choices)
+    set_ro_prompt(text_to_play)
     app.logger.info("Bot Dialogue: '%s'", text_to_play)
     play_source = TextSource(text=text_to_play, voice_name=SPEECH_TO_TEXT_VOICE)
     call_connection_client.start_recognizing_media(
@@ -363,8 +392,9 @@ def get_media_recognize_speech_input(call_connection_client: CallConnectionClien
         target_participant (str): The participant's identifier.
         context (str): The recognition context.
     """
-    retry_object.context = context
-    retry_object.mode = "speech"
+    set_ro_context(context)
+    set_ro_mode("speech")
+    set_ro_prompt(text_to_play)
     play_source = TextSource(text=text_to_play, voice_name=SPEECH_TO_TEXT_VOICE)
     call_connection_client.start_recognizing_media(
         input_type=RecognizeInputType.SPEECH,
@@ -388,8 +418,9 @@ def get_media_recognize_speech_or_dtmf_input(call_connection_client: CallConnect
         target_participant (str): The participant's identifier.
         context (str): The recognition context.
     """
-    retry_object.context = context
-    retry_object.mode = "speech_or_dtmf"
+    set_ro_context(context)
+    set_ro_mode("speech_or_dtmf")
+    set_ro_prompt(text_to_play)
     play_source = TextSource(text=text_to_play, voice_name=SPEECH_TO_TEXT_VOICE)
 
     # Determine max tones depending on context
@@ -597,7 +628,6 @@ def callback_events_handler():
         # Perform different actions based on DTMF tone received from RecognizeCompleted event
         elif event.type == "Microsoft.Communication.RecognizeCompleted":
             app.logger.info("Recognize completed: data=%s", event.data)
-            retry_object.counter = 0
             # RECOGNIZED CHOICES INPUT
             if event.data['recognitionType'] == "choices":
                 label_detected = event.data['choiceResult']['label'];
@@ -794,10 +824,10 @@ def callback_events_handler():
                 if event.data['operationContext'] == "confirm_work_location":
                     work_mode = label_detected
                     current_ticket.work_mode = work_mode
-                    text_to_play = "Okay. Now, What is the best way to contact you? Say 'email' if you would " \
-                                   "like to be contacted via email, " \
-                                   " or say 'phone' if you would like to be contacted via phone call. " \
-                                   "Or, press 'one' for email, or press 'two' for phone. "
+                    text_to_play = "Okay. Now, What is the best way to contact you? Say 'phone' if you would " \
+                                   "like to be contacted via phone call, " \
+                                   " or say 'email' if you would like to be contacted via email. " \
+                                   "Or, press 'one' for phone, or 'two' for email. "
                     get_media_recognize_choice_options(
                         call_connection_client=call_connection_client,
                         text_to_play=text_to_play,
@@ -850,7 +880,7 @@ def callback_events_handler():
                     final_id_num = no_spaces_text.replace(".", "")
                     if "c" not in final_id_num and "e" not in final_id_num:
                         final_id_num = "e" + final_id_num
-                    
+
                     temp_employee = get_employee_by_id(final_id_num)
 
                     if isinstance(temp_employee, Employee):
@@ -995,11 +1025,11 @@ def callback_events_handler():
                 handle_play(call_connection_client=call_connection_client, text_to_play=FATAL_ERROR_MESSAGE)
 
         elif event.type == "Microsoft.Communication.RecognizeFailed":
-            retry_object.counter += 1
+            increment_ro_counter()
             if retry_object.counter > 2:
                 handle_play(call_connection_client, "I apologize. It looks like we are having an issue understanding "
-                                                    "each other. Let me connect you to a live agent. Goodbye for "
-                                                    "now!", "retry_count_reached")
+                                                    "each other. This program is set to disconnect after three failed "
+                                                    "attempts. Goodbye for now!", "retry_count_reached")
 
             failedContext = event.data['operationContext']
             if failedContext:
@@ -1062,4 +1092,3 @@ def index_handler():
 if __name__ == '__main__':
     app.logger.setLevel(INFO)
     app.run(port=8080)
-
